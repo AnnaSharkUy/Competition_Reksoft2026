@@ -1,0 +1,1515 @@
+[
+  {
+    "Name": "API-CP-01 Получение access_token (внешний IdP)",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Auth",
+    "Tags": [
+      "api",
+      "critical",
+      "auth",
+      "idp",
+      "integration"
+    ],
+    "Description": "Интеграционный тест внешнего token endpoint. Не является проверкой контракта OpenAPI DAM Service.",
+    "Preconditions": "{{TOKEN_URL}}, {{USERNAME}}, {{PASSWORD}}, {{CLIENT_SECRET}}; client_id=rex-client; grant_type=password",
+    "ExpectedResult": "HTTP 200 от IdP; access_token — непустая строка; token_type указывает Bearer; expires_in > 0. Токен сохраняется как {{access_token}}.",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST {{TOKEN_URL}} Content-Type: application/x-www-form-urlencoded",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "IdP принимает соединение и запрос",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "Тело: grant_type=password&client_id=rex-client&client_secret={{CLIENT_SECRET}}&username={{USERNAME}}&password={{PASSWORD}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "Параметры grant переданы",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "Извлечь access_token, token_type, expires_in; сохранить {{access_token}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; access_token непустой; expires_in>0",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-02 SystemSettings и CreationProcesses",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path",
+    "Tags": [
+      "api",
+      "critical",
+      "settings"
+    ],
+    "Description": "GET /SystemSettings/CreationProcesses возвращает BusinessProcessResponse[]; в POST /Asset processName = поле name выбранного процесса.",
+    "Preconditions": "Authorization: Bearer {{access_token}}",
+    "ExpectedResult": "HTTP 200 на оба GET; isDocumentTextSearchEnabled — boolean; при непустом списке процессов {{processName}} = name первого/выбранного элемента",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/SystemSettings",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; isDocumentTextSearchEnabled имеет тип boolean",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "GET {{API_BASE}}/SystemSettings/CreationProcesses",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; тело — JSON-массив объектов",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "Если массив не пуст: сохранить processName = elements[i].name как {{processName}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "{{processName}} равен полю name объекта процесса (строка), не displayName",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-03 Создание image-актива POST /Asset",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "create"
+    ],
+    "Description": "POST /Asset multipart. OpenAPI: properties file (binary), processName (string). Обязательность file в schema не marked required — на стенде без file обычно 400 (поведение стенда). Для CP используем JPEG.",
+    "Preconditions": "Bearer {{access_token}}; файл fixtures/upload/qa-image.jpg; {{processName}} из CP-02 если список не пуст (иначе опустить processName)",
+    "ExpectedResult": "HTTP 200; тело ответа — целое число (int64) {{assetId}} > 0",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST {{API_BASE}}/Asset multipart/form-data: file=qa-image.jpg; processName={{processName}} если задан",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "Прочитать body как integer; сохранить {{assetId}} (число, без кавычек в дальнейших JSON)",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "{{assetId}} — integer > 0",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-04 GET актива после создания",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "read"
+    ],
+    "Description": "GET /Asset/{assetId}",
+    "Preconditions": "Bearer; {{assetId}} из CP-03",
+    "ExpectedResult": "HTTP 200 AssetResponse; id актива == {{assetId}}; сохранены {{fileName}} и при наличии {{assetVersionId}} текущей версии",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "Сверить id с {{assetId}}; сохранить fileName текущей версии как {{fileName}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "id совпадает; {{fileName}} непустой (например qa-image.jpg)",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-05 Thumbnail image-актива — 200",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "preview"
+    ],
+    "Description": "GET /Asset/Thumbnail/{assetId}/{fileName}. Выполняется ДО ReplaceFile, пока актив — изображение с превью.",
+    "Preconditions": "Bearer; {{assetId}} JPEG из CP-03; {{fileName}} из CP-04; poll: interval 3s, max wait 60s",
+    "ExpectedResult": "HTTP 200; непустое binary-тело thumbnail",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "Повторять GET {{API_BASE}}/Asset/Thumbnail/{{assetId}}/{{fileName}} каждые 3 с, не дольше 60 с, пока status не 200 или не истечёт таймаут",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "В пределах 60 с получен HTTP 200; иначе fail с причиной timeout 60s",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "Проверить, что тело ответа непустое и не JSON ErrorResponse",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "Binary thumbnail получен",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-06 Download image-файла — 200",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "download"
+    ],
+    "Description": "GET /Asset/{assetId}/{fileName}. OpenAPI: 200 | 404. Позитив до замены файла.",
+    "Preconditions": "Bearer с CanDownload; {{assetId}}, {{fileName}} из CP-04",
+    "ExpectedResult": "HTTP 200; поток исходного файла",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}/{{fileName}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "Убедиться, что ответ не ErrorResponse",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "Файловое/бинарное тело получено",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-07 PATCH Name и проверка GET",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "update"
+    ],
+    "Description": "PATCH /Asset/Name. В JSON assetId — number без кавычек.",
+    "Preconditions": "Bearer; {{assetId}}",
+    "ExpectedResult": "HTTP 204; GET name == DBG_CP_RENAMED",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "PATCH {{API_BASE}}/Asset/Name тело: {\"assetId\":{{assetId}},\"name\":\"DBG_CP_RENAMED\"}  // assetId без кавычек",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204 No Content",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; name == DBG_CP_RENAMED",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-08 PATCH Categories и проверка GET",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "update"
+    ],
+    "Description": "PATCH /Asset/Categories; category id — number",
+    "Preconditions": "Bearer; {{assetId}}; {{categoryId}} — number из GET /Taxonomy/Category/Library или UserCategories",
+    "ExpectedResult": "HTTP 204; GET содержит {{categoryId}} в categories",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET taxonomy; выбрать числовой {{categoryId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "{{categoryId}} — integer",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "PATCH {{API_BASE}}/Asset/Categories {\"assetId\":{{assetId}},\"categories\":[{{categoryId}}]}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; categories содержат {{categoryId}}",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-09 PATCH Categories/Fields (текстовое поле категории)",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "update"
+    ],
+    "Description": "PATCH /Asset/Categories/Fields. fieldId — integer поля типа Text, принадлежащего назначенной в CP-08 категории.",
+    "Preconditions": "Bearer; {{assetId}}; {{fieldId}} — Text-поле из fields выбранной category; не disabledManualEditing",
+    "ExpectedResult": "HTTP 204; GET: значение {{fieldId}} == DBG_FIELD_CP",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "По GET /Taxonomy/Category/Asset/{{assetId}} или Field выбрать fieldId типа Text категории {{categoryId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "{{fieldId}} integer, type Text, относится к категории актива",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "PATCH {{API_BASE}}/Asset/Categories/Fields тело: {\"assetId\":{{assetId}},\"updateFields\":[{\"fieldId\":{{fieldId}},\"fieldValue\":[\"DBG_FIELD_CP\"]}]}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; значение поля {{fieldId}} содержит DBG_FIELD_CP",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-10 PATCH Tags и проверка GET",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "update"
+    ],
+    "Description": "PATCH /Asset/Tags",
+    "Preconditions": "Bearer; {{assetId}}",
+    "ExpectedResult": "HTTP 204; GET: в массиве tags есть элементы с tagValue == \"api_cp\" и tagValue == \"critical\"",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "PATCH {{API_BASE}}/Asset/Tags {\"assetId\":{{assetId}},\"tags\":[\"api_cp\",\"critical\"]}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}; проверить tags[].tagValue",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; среди tags[].tagValue присутствуют \"api_cp\" и \"critical\"",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-11 Search созданного актива",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Search",
+    "Tags": [
+      "api",
+      "critical",
+      "search"
+    ],
+    "Description": "POST /Asset/Search",
+    "Preconditions": "Bearer; имя DBG_CP_RENAMED; {{assetId}}; индексация: poll interval 2s, max wait 30s",
+    "ExpectedResult": "В пределах 30s: HTTP 200; totalHits≥1; в assets есть id == {{assetId}}",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "Повторять POST {{API_BASE}}/Asset/Search {\"query\":\"DBG_CP_RENAMED\",\"page\":0,\"pageSize\":20} каждые 2 с, не дольше 30 с, пока totalHits≥1 и assets содержат id={{assetId}} либо не истечёт таймаут",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "В пределах 30s найден assetId; иначе fail с причиной index timeout 30s",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-12 GET Versions до ReplaceFile",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "version"
+    ],
+    "Description": "GET /Asset/{assetId}/Versions. versionV1Id — версия с минимальным versionNumber. Снимок name/fileName через GET /Asset/Version/{assetVersionId} до Restore/Replace.",
+    "Preconditions": "Bearer; {{assetId}}",
+    "ExpectedResult": "HTTP 200; {{versionsBefore}}=length; {{versionV1Id}}=id с min(versionNumber); {{v1Name}}, {{v1FileName}} из GET Version",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}/Versions",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; непустой массив AssetVersionView",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "Выбрать элемент с минимальным versionNumber; сохранить id как {{versionV1Id}}; {{versionsBefore}}=length",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "{{versionV1Id}} = id версии с min(versionNumber); {{versionsBefore}}≥1",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "GET {{API_BASE}}/Asset/Version/{{versionV1Id}}; сохранить name→{{v1Name}}, fileName→{{v1FileName}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; {{v1Name}} и {{v1FileName}} зафиксированы",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-13 ReplaceFile на PDF и обновление fileName",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "version"
+    ],
+    "Description": "POST /Asset/{id}/ReplaceFile. После успеха обновить {{fileName}} из GET.",
+    "Preconditions": "Bearer; {{assetId}}; файл qa-document.pdf",
+    "ExpectedResult": "HTTP 204; Versions length == versionsBefore+1; {{fileName}} обновлён до имени PDF",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST {{API_BASE}}/Asset/{{assetId}}/ReplaceFile multipart file=qa-document.pdf",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}/Versions",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; length == {{versionsBefore}}+1",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}; сохранить новый fileName как {{fileName}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "{{fileName}} соответствует qa-document.pdf (или фактическому basename загрузки)",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-14 Download после ReplaceFile — актуальный fileName",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "download"
+    ],
+    "Description": "Скачивание с {{fileName}} из CP-13 (после замены), не из CP-04.",
+    "Preconditions": "Bearer CanDownload; {{assetId}}; {{fileName}} обновлён в CP-13",
+    "ExpectedResult": "HTTP 200; поток файла текущей (PDF) версии",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}/{{fileName}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-15 RestoreVersion",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "version"
+    ],
+    "Description": "POST /Asset/RestoreVersion/{assetVersionId}. Проверка assetVersionId в ответе.",
+    "Preconditions": "Bearer; {{versionV1Id}} с min(versionNumber) из CP-12; снимки {{v1Name}}, {{v1FileName}}",
+    "ExpectedResult": "HTTP 200; assetVersionId в ответе — number; GET Asset: name=={{v1Name}}, fileName=={{v1FileName}}",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST {{API_BASE}}/Asset/RestoreVersion/{{versionV1Id}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "Проверить тело RestoreAssetVersionResponse: поле assetVersionId — число",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "assetVersionId присутствует и typeof number / integer",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; name == {{v1Name}}; fileName == {{v1FileName}}",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-COL-01 CRUD коллекции; актив остаётся в коллекции до delete collection",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Collection",
+    "Tags": [
+      "api",
+      "collection",
+      "crud"
+    ],
+    "Description": "Create → rename → add asset → delete collection (актив ЕЩЁ в коллекции) → GET asset 200",
+    "Preconditions": "Bearer; {{assetId}} ещё не удалён (до CP-DEL)",
+    "ExpectedResult": "collectionId получен; rename 204; add 204; delete collection 204; GET /Asset/{{assetId}} → 200",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST {{API_BASE}}/Collection {\"name\":\"DBG_COL_CP\"}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; body integer {{collectionId}}",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "PATCH {{API_BASE}}/Collection/Name {\"id\":{{collectionId}},\"name\":\"DBG_COL_RENAMED\"}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "POST {{API_BASE}}/Collection/Assets {\"id\":{{collectionId}},\"assetIds\":[{{assetId}}]}  // assetId number в массиве",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      },
+      {
+        "Order": 3,
+        "Action": "GET {{API_BASE}}/Collection/{{collectionId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; assetIds содержит {{assetId}}",
+        "SharedStepId": null
+      },
+      {
+        "Order": 4,
+        "Action": "DELETE {{API_BASE}}/Collection/{{collectionId}}  // актив всё ещё в коллекции",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      },
+      {
+        "Order": 5,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; актив не удалён вместе с коллекцией",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CMT-01 CRUD комментария с проверкой deletedAt",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Comment",
+    "Tags": [
+      "api",
+      "comment",
+      "crud"
+    ],
+    "Description": "POST → GET → PUT → DELETE → GET (deletedAt / скрытие текста)",
+    "Preconditions": "Bearer; targetId = {{assetId}} (number); required поля CreateAssetCommentRequest с конкретными значениями: targetSection=\"Asset\" (string), targetSectionId={{assetId}} (number), content, assetName (string, напр. из {{fileName}} или \"DBG_ASSET\"), assetLink (string URL, напр. \"https://dam.example/asset/{{assetId}}\")",
+    "ExpectedResult": "Create 200; GET видит content; PUT меняет content; DELETE 200; повторный GET — deletedAt заполнен или текст скрыт",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST {{API_BASE}}/Comment body: {\"targetId\":{{assetId}},\"targetSection\":\"Asset\",\"targetSectionId\":{{assetId}},\"content\":\"DBG_CMT\",\"assetName\":\"DBG_ASSET\",\"assetLink\":\"https://dam.example/asset/{{assetId}}\"}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; CommentView с id → {{commentId}}",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "GET {{API_BASE}}/Comment/{{assetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; есть комментарий с content DBG_CMT",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "PUT {{API_BASE}}/Comment тело: {\"targetId\":{{assetId}},\"id\":{{commentId}},\"content\":\"DBG_CMT_EDITED\"}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; content == DBG_CMT_EDITED",
+        "SharedStepId": null
+      },
+      {
+        "Order": 3,
+        "Action": "DELETE {{API_BASE}}/Comment/{{assetId}}/{{commentId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      },
+      {
+        "Order": 4,
+        "Action": "GET {{API_BASE}}/Comment/{{assetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; у удалённого комментария deletedAt заполнен и/или текст скрыт (не отображается как активный DBG_CMT_EDITED)",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-LNK-01 CRUD связи; DELETE с обёрткой links",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/AssetLink",
+    "Tags": [
+      "api",
+      "link",
+      "crud"
+    ],
+    "Description": "POST /AssetLink; GET; DELETE body {\"links\":[{asset1Id, asset2Id, linkTypeId}]} — id числовые",
+    "Preconditions": "Bearer; {{assetId}}; второй {{assetId2}} (создать отдельным POST /Asset или взять существующий); {{linkTypeId}} из GET /Taxonomy/LinkType",
+    "ExpectedResult": "POST 204; GET показывает связь; DELETE 204; GET без этой связи",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "При необходимости POST /Asset для {{assetId2}} (второй актив)",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "{{assetId2}} — integer",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "GET {{API_BASE}}/Taxonomy/LinkType → {{linkTypeId}} integer",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "{{linkTypeId}} получен",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "POST {{API_BASE}}/AssetLink {\"assetId\":{{assetId}},\"assetsToLinkIds\":[{{assetId2}}],\"linkTypeId\":{{linkTypeId}},\"isLinkFromParentToChild\":true}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      },
+      {
+        "Order": 3,
+        "Action": "GET {{API_BASE}}/AssetLink/{{assetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; связь с {{assetId2}} есть",
+        "SharedStepId": null
+      },
+      {
+        "Order": 4,
+        "Action": "DELETE {{API_BASE}}/AssetLink тело: {\"links\":[{\"asset1Id\":{{assetId}},\"asset2Id\":{{assetId2}},\"linkTypeId\":{{linkTypeId}}}]}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      },
+      {
+        "Order": 5,
+        "Action": "GET {{API_BASE}}/AssetLink/{{assetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; удалённой связи нет",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-SS-01 CRUD SavedSearch User",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/SavedSearch",
+    "Tags": [
+      "api",
+      "savedsearch",
+      "crud"
+    ],
+    "Description": "POST → GET → PUT → PUT parameters → DELETE",
+    "Preconditions": "Bearer",
+    "ExpectedResult": "Create 200+integer id; GET 200; updates 204; DELETE 204; id нет в GET /SavedSearch/User",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST /SavedSearch {\"name\":\"DBG_SS\",\"description\":\"cp\",\"savedSearchType\":\"User\",\"searchParameters\":{\"query\":\"DBG\"}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; {{savedSearchId}} integer",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "GET /SavedSearch/{{savedSearchId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; type User",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "PUT /SavedSearch {\"id\":{{savedSearchId}},\"name\":\"DBG_SS2\",\"description\":\"cp2\"}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      },
+      {
+        "Order": 3,
+        "Action": "PUT /SavedSearch/SearchParameters {\"id\":{{savedSearchId}},\"searchParameters\":{\"query\":\"DBG2\"}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      },
+      {
+        "Order": 4,
+        "Action": "DELETE /SavedSearch/{{savedSearchId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      },
+      {
+        "Order": 5,
+        "Action": "GET /SavedSearch/User",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; {{savedSearchId}} отсутствует",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-16 BusinessAction на отдельном активе + History по id",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "bp"
+    ],
+    "Description": "BusinessAction выполняется на отдельном {{bpAssetId}}, чтобы не менять статус основного {{assetId}} до COL/CMT/LNK/DELETE. historyRecordId сверяется с id записи в History. Cleanup DELETE {{bpAssetId}}: выбранное действие и роль должны гарантировать право удалить актив после BA.",
+    "Preconditions": "Bearer; создать {{bpAssetId}} отдельным POST /Asset (тот же processName); {{actionId}} integer из allowedActions статуса {{bpAssetId}}; выбрать actionId так, чтобы после выполнения статус {{bpAssetId}} и роль текущего пользователя по-прежнему допускали DELETE (иначе cleanup оставит данные на стенде)",
+    "ExpectedResult": "HTTP 200; historyRecordId — integer; в GET BusinessActionHistory есть запись с id == historyRecordId",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST {{API_BASE}}/Asset multipart file=qa-image.jpg, processName={{processName}} → сохранить integer {{bpAssetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; {{bpAssetId}} integer > 0",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "GET {{API_BASE}}/Asset/{{bpAssetId}} или LifeCycle; выбрать {{actionId}} integer из allowedActions",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "{{actionId}} — integer",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "POST {{API_BASE}}/Asset/BusinessAction {\"assetId\":{{bpAssetId}},\"actionId\":{{actionId}}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      },
+      {
+        "Order": 3,
+        "Action": "Прочитать PerformBusinessActionResponse.historyRecordId → {{historyRecordId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "{{historyRecordId}} — integer, не null",
+        "SharedStepId": null
+      },
+      {
+        "Order": 4,
+        "Action": "GET {{API_BASE}}/Asset/{{bpAssetId}}/BusinessActionHistory",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; в массиве есть элемент с id == {{historyRecordId}} (точное равенство)",
+        "SharedStepId": null
+      },
+      {
+        "Order": 5,
+        "Action": "DELETE {{API_BASE}}/Asset/{{bpAssetId}} (cleanup отдельного актива). Если 403/400 — выбранный actionId перевёл актив в статус без права delete; повторить кейс с другим actionId из allowedActions исходного статуса",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204 (право delete сохранено после BusinessAction)",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-17 DELETE актива — 204",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "delete"
+    ],
+    "Description": "DELETE /Asset/{id}. Выполнять ПОСЛЕ COL/CMT/LNK, использующих {{assetId}}. Предусловие самостоятельное: статус и права на {{assetId}} позволяют delete (CP-16 не влияет на основной актив).",
+    "Preconditions": "Bearer; {{assetId}} существует; текущий статус основного актива и права пользователя допускают удаление. Не зависит от CP-16: CP-16 работает с отдельным {{bpAssetId}} и не меняет статус {{assetId}}",
+    "ExpectedResult": "HTTP 204",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "DELETE {{API_BASE}}/Asset/{{assetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204 No Content",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-CP-18 GET удалённого актива — 404",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Critical Path/Asset",
+    "Tags": [
+      "api",
+      "critical",
+      "delete"
+    ],
+    "Description": "GET после DELETE",
+    "Preconditions": "{{assetId}} удалён в CP-17",
+    "ExpectedResult": "HTTP 404; ErrorResponse.message непустой",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/Asset/{{assetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 404",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "Проверить message",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "message — непустая строка",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-AUTH-01 SystemSettings с валидным X-Api-Key",
+    "Priority": "Medium",
+    "Status": "Actual",
+    "Area": "API/Auth",
+    "Tags": [
+      "api",
+      "auth",
+      "apikey"
+    ],
+    "Description": "OpenAPI security: Bearer ИЛИ X-Api-Key. Позитив: валидный X-Api-Key без Bearer.",
+    "Preconditions": "{{VALID_API_KEY}} выдан стендом; заголовок X-Api-Key; без Authorization",
+    "ExpectedResult": "HTTP 200; тело DamSystemSettingsResponse",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/SystemSettings с заголовком X-Api-Key: {{VALID_API_KEY}}, без Authorization",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; isDocumentTextSearchEnabled — boolean",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-NEG-01 Без Authorization и X-Api-Key — 401",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Auth",
+    "Tags": [
+      "api",
+      "auth",
+      "negative"
+    ],
+    "Description": "Security schemes Bearer | ApiKey",
+    "Preconditions": "Не передавать оба заголовка",
+    "ExpectedResult": "HTTP 401",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/SystemSettings без Authorization и X-Api-Key",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 401",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-NEG-02 Невалидный Bearer — 401",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Auth",
+    "Tags": [
+      "api",
+      "auth",
+      "negative"
+    ],
+    "Description": "Невалидный token",
+    "Preconditions": "Реальный токен не нужен. {{INVALID_BEARER}}=not.a.jwt.token (любая невалидная строка)",
+    "ExpectedResult": "HTTP 401",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/SystemSettings заголовок Authorization: Bearer {{INVALID_BEARER}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 401",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-NEG-03 GET Asset несуществующий id — 404",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Asset/Read",
+    "Tags": [
+      "api",
+      "negative"
+    ],
+    "Description": "OpenAPI 200|404",
+    "Preconditions": "Bearer; nonexistent numeric id",
+    "ExpectedResult": "HTTP 404; ErrorResponse.message непустой",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/Asset/{{nonexistentAssetId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 404",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "Проверить message",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "message непустой",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-NEG-04 Download несуществующий fileName — 404",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Asset/Download",
+    "Tags": [
+      "api",
+      "negative",
+      "download"
+    ],
+    "Description": "OpenAPI 200|404 only",
+    "Preconditions": "Bearer CanDownload; валидный assetId живого актива; fileName=not_exists.bin",
+    "ExpectedResult": "HTTP 404",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/Asset/{{liveAssetId}}/not_exists.bin",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 404",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-NEG-05 Thumbnail без превью — 404",
+    "Priority": "Medium",
+    "Status": "Actual",
+    "Area": "API/Asset/Preview",
+    "Tags": [
+      "api",
+      "negative",
+      "preview"
+    ],
+    "Description": "Негатив отдельно от позитивного CP-05",
+    "Preconditions": "Bearer; актив/fileName без thumbnail",
+    "ExpectedResult": "HTTP 404",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/Asset/Thumbnail/{{assetIdNoPreview}}/{{fileName}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 404",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-NEG-06 PATCH Name без name — 400",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Asset/Update",
+    "Tags": [
+      "api",
+      "negative",
+      "validation"
+    ],
+    "Description": "required name, assetId",
+    "Preconditions": "Bearer; {{liveAssetId}} integer",
+    "ExpectedResult": "HTTP 400; ErrorResponse",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "PATCH {{API_BASE}}/Asset/Name {\"assetId\":{{liveAssetId}}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 400",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-NEG-07 BusinessAction без actionId — 400",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Asset/Process",
+    "Tags": [
+      "api",
+      "negative",
+      "validation"
+    ],
+    "Description": "required assetId, actionId",
+    "Preconditions": "Bearer; live assetId",
+    "ExpectedResult": "HTTP 400",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST {{API_BASE}}/Asset/BusinessAction {\"assetId\":{{liveAssetId}}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 400",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-NEG-08 Collection без name — 400",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Collection",
+    "Tags": [
+      "api",
+      "negative"
+    ],
+    "Description": "required name",
+    "Preconditions": "Bearer",
+    "ExpectedResult": "HTTP 400",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST {{API_BASE}}/Collection {}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 400",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-NEG-09 Comment без content — 400",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Comment",
+    "Tags": [
+      "api",
+      "negative"
+    ],
+    "Description": "required content среди прочих",
+    "Preconditions": "Bearer",
+    "ExpectedResult": "HTTP 400",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST {{API_BASE}}/Comment без content (прочие поля допустимо заполнить)",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 400",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-NEG-10 ValueSource несуществующий — 404",
+    "Priority": "Medium",
+    "Status": "Actual",
+    "Area": "API/Taxonomy",
+    "Tags": [
+      "api",
+      "negative"
+    ],
+    "Description": "GET ValueSource 200|404",
+    "Preconditions": "Bearer",
+    "ExpectedResult": "HTTP 404",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/Taxonomy/ValueSource/{{nonexistentValueSourceId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 404",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-NEG-11 User неизвестный — 400",
+    "Priority": "Medium",
+    "Status": "Actual",
+    "Area": "API/User",
+    "Tags": [
+      "api",
+      "negative"
+    ],
+    "Description": "GET /User/{userId} 200|400",
+    "Preconditions": "Bearer",
+    "ExpectedResult": "HTTP 400",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/User/{{unknownUserId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 400",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-EXP-01 POST /Asset без file — поведение стенда",
+    "Priority": "Low",
+    "Status": "Actual",
+    "Area": "API/Exploratory",
+    "Tags": [
+      "api",
+      "exploratory"
+    ],
+    "Description": "В OpenAPI file не marked required. Зафиксировать фактический status (часто 400), не утверждать как требование Swagger.",
+    "Preconditions": "Bearer",
+    "ExpectedResult": "Ответ получен; status ≠ 500; фактический code и body записаны в отчёт (ожидаемо 400 на стенде, но не контракт schema required)",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST {{API_BASE}}/Asset multipart без part file",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "status зафиксирован; не 500",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-AST-SEARCH-EDIT-01 Search/Editable canEdit",
+    "Priority": "Medium",
+    "Status": "Actual",
+    "Area": "API/Asset/Search",
+    "Tags": [
+      "api",
+      "search"
+    ],
+    "Description": "POST /Asset/Search/Editable. Нужен заведомо редактируемый актив в выдаче.",
+    "Preconditions": "Bearer с правом edit; известен editable asset (создать/использовать {{liveAssetId}})",
+    "ExpectedResult": "HTTP 200; totalHits≥1; у каждого элемента assets canEdit == true",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST {{API_BASE}}/Asset/Search/Editable с фильтром assetIds по {{liveAssetId}} или query уникального имени",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "Для каждого элемента assets проверить canEdit === true",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "totalHits≥1; у всех элементов canEdit == true",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-AST-SEARCH-SAVED-01 BySavedSearchId",
+    "Priority": "Medium",
+    "Status": "Actual",
+    "Area": "API/Asset/Search",
+    "Tags": [
+      "api",
+      "search"
+    ],
+    "Description": "Создаёт собственный SavedSearch (не зависит от API-SS-01), затем POST BySavedSearchId с required savedSearchId, pageSize, lastSortValues. Cleanup: DELETE созданного SavedSearch.",
+    "Preconditions": "Bearer; lastSortValues=[]; кейс самодостаточен — не использует {{savedSearchId}} из API-SS-01 (тот удаляется внутри SS-01)",
+    "ExpectedResult": "Create SavedSearch 200 + integer id; BySavedSearchId HTTP 200; totalHits и assets присутствуют; cleanup DELETE 204",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST /SavedSearch {\"name\":\"DBG_SS_BYSEARCH\",\"description\":\"for BySavedSearchId\",\"savedSearchType\":\"User\",\"searchParameters\":{\"query\":\"DBG\"}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; {{savedSearchIdForSearch}} integer",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "POST /Asset/Search/BySavedSearchId {\"savedSearchId\":{{savedSearchIdForSearch}},\"pageSize\":20,\"lastSortValues\":[]}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; totalHits и assets присутствуют",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "DELETE /SavedSearch/{{savedSearchIdForSearch}} (cleanup)",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 204",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-TAX-01 Taxonomy read set",
+    "Priority": "Medium",
+    "Status": "Actual",
+    "Area": "API/Taxonomy",
+    "Tags": [
+      "api",
+      "taxonomy"
+    ],
+    "Description": "GET Library, Field, LinkType, SystemField, UserCategories",
+    "Preconditions": "Bearer",
+    "ExpectedResult": "Все HTTP 200",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET /Taxonomy/Category/Library",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "GET /Taxonomy/Field",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      },
+      {
+        "Order": 2,
+        "Action": "GET /Taxonomy/LinkType",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      },
+      {
+        "Order": 3,
+        "Action": "GET /Taxonomy/SystemField",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      },
+      {
+        "Order": 4,
+        "Action": "GET /Taxonomy/UserCategories",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-LC-01 LifeCycle/Status с statusColor",
+    "Priority": "Medium",
+    "Status": "Actual",
+    "Area": "API/Lifecycle",
+    "Tags": [
+      "api",
+      "lifecycle"
+    ],
+    "Description": "GET /LifeCycle/Status; required name, statusColor, allowedActions",
+    "Preconditions": "Bearer",
+    "ExpectedResult": "HTTP 200; каждый элемент содержит name, statusColor, allowedActions",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/LifeCycle/Status",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      },
+      {
+        "Order": 1,
+        "Action": "Для каждого статуса проверить наличие name, statusColor, allowedActions",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "Все три поля присутствуют у каждого элемента",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-USR-01 GET User существующий — 200",
+    "Priority": "Medium",
+    "Status": "Actual",
+    "Area": "API/User",
+    "Tags": [
+      "api",
+      "user"
+    ],
+    "Description": "Позитив отдельно от NEG-11",
+    "Preconditions": "Bearer; существующий userId",
+    "ExpectedResult": "HTTP 200 UserView",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/User/{{existingUserId}}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-TAG-01 GET AssetTag",
+    "Priority": "Medium",
+    "Status": "Actual",
+    "Area": "API/AssetTag",
+    "Tags": [
+      "api",
+      "tag"
+    ],
+    "Description": "GET /AssetTag",
+    "Preconditions": "Bearer или ApiKey",
+    "ExpectedResult": "HTTP 200; array of string",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "GET {{API_BASE}}/AssetTag",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200; JSON array строк",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  },
+  {
+    "Name": "API-AST-ARCH-01 Archive",
+    "Priority": "High",
+    "Status": "Actual",
+    "Area": "API/Asset/Download",
+    "Tags": [
+      "api",
+      "download"
+    ],
+    "Description": "POST /Asset/Archive; assetIds — number[]",
+    "Preconditions": "Bearer CanDownload; live assetId",
+    "ExpectedResult": "HTTP 200 архив",
+    "TestSteps": [
+      {
+        "Order": 0,
+        "Action": "POST /Asset/Archive {\"timestamp\":\"{{iso_timestamp}}\",\"assetIds\":[{{liveAssetId}}]}",
+        "TestData": null,
+        "Attachment": null,
+        "ExpectedResult": "HTTP 200",
+        "SharedStepId": null
+      }
+    ],
+    "RequirementId": [],
+    "Duration": 0
+  }
+]

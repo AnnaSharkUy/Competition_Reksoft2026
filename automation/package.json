@@ -1,0 +1,19 @@
+{
+  "name": "rex-dam-automation",
+  "private": true,
+  "description": "Playwright process for Reksoft DAM: API first, then Library UI.",
+  "scripts": {
+    "test": "playwright test --project=api --project=ui",
+    "test:api": "playwright test --project=api",
+    "test:ui": "playwright test --project=ui",
+    "test:cases": "playwright test --project=cases",
+    "test:ui:headed": "playwright test --project=ui --headed",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen",
+    "cli": "playwright-cli"
+  },
+  "devDependencies": {
+    "@playwright/cli": "^0.1.22",
+    "@playwright/test": "^1.55.0"
+  }
+}
